@@ -147,6 +147,13 @@ if [[ $IS_SAMBA -eq 1 ]]; then
         "s|background:var(--bg2);padding:8px 1.25rem;text-align:left|background:var(--bg3);padding:8px 14px;text-align:left|g" \
         "$PANEL_FILE"
 
+    # Fix tag colors
+    sed -i 's|background:rgba(46,160,67,.15);border-color:rgba(46,160,67,.3);color:#7ee787|background:#0a2518;border-color:#1a4a30;color:#3fd87a|g' "$PANEL_FILE"
+    sed -i 's|background:rgba(218,54,51,.15);border-color:rgba(218,54,51,.3);color:#ffa198|background:#2a0f0f;border-color:#4a1f1f;color:#ff5a5a|g' "$PANEL_FILE"
+    sed -i 's|background:rgba(46,160,67,.2);border-color:var(--accent);color:#7ee787|background:#0a2518;border-color:#1a4a30;color:#3fd87a|g' "$PANEL_FILE"
+    sed -i 's|background:rgba(218,54,51,.2);border-color:var(--danger);color:#ffa198|background:#2a0f0f;border-color:#4a1f1f;color:#ff5a5a|g' "$PANEL_FILE"
+    log "Tags e toasts corrigidos"
+
     # Restart nginx/php
     systemctl reload nginx  2>/dev/null || true
     systemctl restart php8.3-fpm 2>/dev/null || true
