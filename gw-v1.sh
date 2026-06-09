@@ -327,20 +327,18 @@ update-ca-certificates 2>/dev/null && ok "CA instalado no sistema"
 # Banco SSL do Squid
 CERTGEN=$(find /usr -name "security_file_certgen" 2>/dev/null | head -1)
 if [[ -n "$CERTGEN" ]]; then
-    if [[ ! -d "${SSL_DB}" ]] || [[ -z "$(ls -A "${SSL_DB}" 2>/dev/null)" ]]; then
-        mkdir -p "${SSL_DB}"
-        # Rodar como usuário proxy para evitar problemas de permissão
-        if id proxy &>/dev/null; then
-            sudo -u proxy "${CERTGEN}" -c -s "${SSL_DB}" -M 256MB 2>/dev/null ||                 "${CERTGEN}" -c -s "${SSL_DB}" -M 256MB 2>/dev/null || true
-        else
-            "${CERTGEN}" -c -s "${SSL_DB}" -M 256MB 2>/dev/null || true
-        fi
-        chown -R proxy:proxy "${SSL_DB}" 2>/dev/null ||             chown -R nobody:nogroup "${SSL_DB}" 2>/dev/null || true
-        chmod 700 "${SSL_DB}" 2>/dev/null || true
-        ok "Banco SSL Squid criado em ${SSL_DB}"
+    # Recriar banco SSL sempre — evita sslcrtd_program crashing (banco corrompido)
+    rm -rf "${SSL_DB}" 2>/dev/null || true
+    mkdir -p "${SSL_DB}"
+    chown -R proxy:proxy "${SSL_DB}" 2>/dev/null || true
+    chmod 750 "${SSL_DB}" 2>/dev/null || true
+    if id proxy &>/dev/null; then
+        sudo -u proxy "${CERTGEN}" -c -s "${SSL_DB}" -M 256MB 2>/dev/null &&             ok "Banco SSL criado como proxy" ||             { "${CERTGEN}" -c -s "${SSL_DB}" -M 256MB 2>/dev/null && ok "Banco SSL criado" || warn "Banco SSL com problema"; }
     else
-        ok "Banco SSL Squid já existe — mantido"
+        "${CERTGEN}" -c -s "${SSL_DB}" -M 256MB 2>/dev/null && ok "Banco SSL criado" || warn "Banco SSL com problema"
     fi
+    chown -R proxy:proxy "${SSL_DB}" 2>/dev/null || true
+    chmod -R 750 "${SSL_DB}" 2>/dev/null || true
 fi
 
 # =============================================================================
@@ -497,7 +495,7 @@ if SSL_ENABLED and CERTGEN and os.path.exists(f"{CA_DIR}/cdpni-ca.crt"):
     lines.append(f"http_port {PROXY_PORT_PLAIN}")
     lines.append("")
     lines.append(f"sslcrtd_program {CERTGEN} -s {SSL_DB} -M 256MB")
-    lines.append("sslcrtd_children 8 startup=4 idle=2")
+    lines.append("sslcrtd_children 4 startup=2 idle=1")
     lines.append("")
     # ACLs SSL Bump — DEVEM vir antes das http_access rules, mas DEPOIS das acl src
     # ssl_nobump usa arquivo de lista — subdomínios redundantes já foram removidos do arquivo
@@ -1252,6 +1250,8 @@ else
     ok "Venv existente mantido"
 fi
 "${VENV}/bin/pip" install --quiet flask 2>/dev/null || true
+# Tentar instalar python-pam via pip como fallback adicional
+"${VENV}/bin/pip" install --quiet python-pam 2>/dev/null || true
 # PAM: autenticação via usuário/senha do sistema Linux
 # Adicionar grupo shadow para acessar /etc/shadow
 SHADOW_GRP=""
@@ -1307,7 +1307,20 @@ GW_CONF  = Path("/etc/gateway")
 LIST_DIR = Path("/etc/squid/lists")
 SQUID_CONF = Path("/etc/squid/squid.conf")
 
-import pam as _pam
+try:
+    import pam as _pam
+except ImportError:
+    try:
+        import _pam
+    except ImportError:
+        class _pam:
+            class pam:
+                def authenticate(self, user, passwd, service=None):
+                    import subprocess
+                    nl = chr(10)
+                    r = subprocess.run(['su', '-c', 'true', user],
+                        input=passwd+nl, capture_output=True, text=True, timeout=5)
+                    return r.returncode == 0
 import time, hashlib, hmac
 from collections import defaultdict
 
