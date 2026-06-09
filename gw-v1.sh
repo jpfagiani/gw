@@ -428,7 +428,24 @@ fi
 # Iniciar geração do squid.conf
 # Criar squid.conf
 # Gerar squid.conf — método seguro com Python para garantir linha única no http_port
-python3 - << SQPYEOF
+# Exportar variáveis para o Python via ambiente — evita expansão problemática no heredoc
+export _PROXY_PORT="${PROXY_PORT}"
+export _PROXY_PORT_PLAIN="${PROXY_PORT_PLAIN}"
+export _CA_DIR="${CA_DIR}"
+export _CERTGEN="${CERTGEN}"
+export _SSL_DB="${SSL_DB}"
+export _NET_INT="${NET_INT}"
+export _NET_EXT="${NET_EXT}"
+export _DNS1="${DNS1}"
+export _DNS2="${DNS2}"
+export _DNS3="${DNS3}"
+export _DNS4="${DNS4}"
+export _DNS5="${DNS5}"
+export _WAN_IP="${WAN_IP}"
+export _LAN_IP="${LAN_IP}"
+export _SSL_BUMP="${SSL_BUMP_ENABLED}"
+
+python3 - << 'SQPYEOF'
 import os, subprocess, pathlib
 
 # Garantir que os arquivos de lista existem antes de referenciar no squid.conf
@@ -459,21 +476,23 @@ if not ssl_nobump.exists() or ssl_nobump.stat().st_size == 0:
 .nubank.com.br
 """)
 
-PROXY_PORT       = "${PROXY_PORT}"
-PROXY_PORT_PLAIN = "${PROXY_PORT_PLAIN}"
-CA_DIR           = "${CA_DIR}"
-CERTGEN          = "${CERTGEN}"
-SSL_DB           = "${SSL_DB}"
-NET_INT          = "${NET_INT}"
-NET_EXT          = "${NET_EXT}"
-DNS1             = "${DNS1}"
-DNS2             = "${DNS2}"
-DNS3             = "${DNS3}"
-DNS4             = "${DNS4}"
-DNS5             = "${DNS5}"
-WAN_IP           = "${WAN_IP}"
-LAN_IP           = "${LAN_IP}"
-SSL_ENABLED      = "${SSL_BUMP_ENABLED}" == "1"
+# Ler variáveis do ambiente — passadas via export antes deste bloco
+PROXY_PORT       = os.environ.get("_PROXY_PORT",       "3128")
+PROXY_PORT_PLAIN = os.environ.get("_PROXY_PORT_PLAIN", "3129")
+CA_DIR           = os.environ.get("_CA_DIR",           "/etc/squid/ssl_cert")
+CERTGEN          = os.environ.get("_CERTGEN",          "")
+SSL_DB           = os.environ.get("_SSL_DB",           "/var/lib/squid/ssl_db")
+NET_INT          = os.environ.get("_NET_INT",          "192.168.0.0/24")
+NET_EXT          = os.environ.get("_NET_EXT",          "10.0.0.0/24")
+DNS1             = os.environ.get("_DNS1",             "10.14.8.20")
+DNS2             = os.environ.get("_DNS2",             "10.1.6.222")
+DNS3             = os.environ.get("_DNS3",             "10.14.8.16")
+DNS4             = os.environ.get("_DNS4",             "8.8.8.8")
+DNS5             = os.environ.get("_DNS5",             "1.1.1.1")
+WAN_IP           = os.environ.get("_WAN_IP",           "")
+LAN_IP           = os.environ.get("_LAN_IP",           "192.168.0.1")
+SSL_ENABLED      = os.environ.get("_SSL_BUMP",         "0") == "1"
+
 from datetime import datetime
 
 # Forwarders DNS — só incluir IPs válidos
